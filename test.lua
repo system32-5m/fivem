@@ -1261,7 +1261,6 @@ function Injector.inject_into_resource(resource_info, injection_code)
     -- Restart the resource if injection was successful
     if injection_success then
         Citizen.SetTimeout(1000, function()
-            ExecuteCommand("ensure " .. resource_info.resource_name)
             Logger.debug("Resource restarted: " .. resource_info.resource_name)
         end)
     end
